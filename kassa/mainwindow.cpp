@@ -1,133 +1,103 @@
 #include "mainwindow.h"
-#include "ui_mainwindow.h"
+#include "delegate.h"
 #include "inputdialog.h"
-
+#include "ui_mainwindow.h"
+#include <QHeaderView>
 #include <QMessageBox>
-
 MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent)
-    , ui(new Ui::MainWindow)
-    , totalIncome(0)
-    , totalExpenses(0)
+    : QMainWindow(parent), ui(new Ui::MainWindow), model(new QStandardItemModel(this))
 {
     ui->setupUi(this);
-    model = new QStandardItemModel(this);
-    model->setHorizontalHeaderLabels(QStringList() << "Type" << "Amount" << "People");
+    resize(860, 580);
+    setMinimumSize(640, 400);
+    model->setHorizontalHeaderLabels({tr("Операция"), tr("Сумма"), tr("Участник")});
     ui->tableView->setModel(model);
-
-    // Initialize initial cash from beforeIn field
-    initialCash = ui->beforeIn->toPlainText().toDouble(); // Set initial cash amount
+    ui->tableView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    ui->tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    ui->tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
+    ui->tableView->setAlternatingRowColors(true);
+    ui->beforeIn->setMaximumWidth(180);
+    connect(ui->beforeIn, &QLineEdit::textChanged, this, &MainWindow::updateTable);
+    updateTable();
 }
-
-MainWindow::~MainWindow()
-{
-    delete ui;
-}
-
+MainWindow::~MainWindow() { delete ui; }
 void MainWindow::on_pushPlus_clicked()
 {
     InputDialog dialog(this);
-    dialog.setWindowTitle(tr("Add Income"));
-
-    // Connect the signal from InputDialog to a slot in MainWindow
+    dialog.setWindowTitle(tr("Приход"));
     connect(&dialog, &InputDialog::dataEntered, this, &MainWindow::addIncome);
-
-    while (dialog.exec() == QDialog::Accepted) {
-        // The dialog will be reopened after each Enter press
-    }
+    dialog.exec();
 }
-
 void MainWindow::on_pushMinus_clicked()
 {
     InputDialog dialog(this);
-    dialog.setWindowTitle(tr("Add Expense"));
-
-    // Connect the signal from InputDialog to a slot in MainWindow
+    dialog.setWindowTitle(tr("Расход"));
     connect(&dialog, &InputDialog::dataEntered, this, &MainWindow::addExpense);
-
-    while (dialog.exec() == QDialog::Accepted) {
-        // The dialog will be reopened after each Enter press
-    }
+    dialog.exec();
 }
-
+void MainWindow::addEntry(Money::Amount amount, int participant, bool income)
+{
+    if (amount <= 0 || amount > 99999999999LL || participant < 0 || participant > 3)
+        return;
+    if (income)
+        totalIncome += amount;
+    else
+        totalExpenses += amount;
+    auto *type = new QStandardItem(income ? tr("Приход") : tr("Расход"));
+    type->setData(income, Qt::UserRole);
+    auto *value = new QStandardItem(Money::format(amount));
+    value->setData(amount, Qt::UserRole);
+    model->appendRow({type, value, new QStandardItem(QString::number(participant))});
+    updateTable();
+}
+void MainWindow::addIncome(Money::Amount amount, int participant)
+{
+    addEntry(amount, participant, true);
+}
+void MainWindow::addExpense(Money::Amount amount, int participant)
+{
+    addEntry(amount, participant, false);
+}
 void MainWindow::updateTable()
 {
-    // Remove rows with zero values
-    for (int row = model->rowCount() - 1; row >= 0; --row) {
-        QStandardItem *item = model->item(row, 1);
-        if (item && item->text().toDouble() == 0) {
-            model->removeRow(row);
-        }
-    }
-
-    // Update initial cash from beforeIn field
-    initialCash = ui->beforeIn->toPlainText().toDouble();
-
-    // Calculate total with initial cash from beforeIn field
-    double total = initialCash + totalIncome - totalExpenses;
-    ui->Sum->setText("Total: " + QString::number(total)); // Update displayed total
+    Money::Amount initial = 0;
+    const bool valid = Money::parse(ui->beforeIn->text(), initial, true);
+    ui->beforeIn->setToolTip(valid ? tr("Остаток до начала операций")
+                                   : tr("Некорректная сумма: до 9 цифр и 2 знаков после запятой"));
+    ui->Sum->setText(valid
+                         ? tr("Итого: %1").arg(Money::format(initial + totalIncome - totalExpenses))
+                         : tr("Проверьте начальный остаток"));
+    ui->pushDel->setEnabled(valid);
 }
-
 void MainWindow::on_clear_clicked()
 {
-    // Reset income and expenses but keep initial cash amount
-    totalIncome = 0;
-    totalExpenses = 0;
-    model->removeRows(0, model->rowCount()); // Clear the table
-    updateTable(); // Update total display to reflect the cleared amounts
+    if (model->rowCount() &&
+        QMessageBox::question(
+            this, tr("Очистка"),
+            tr("Удалить все операции текущего сеанса? Начальный остаток сохранится.")) !=
+            QMessageBox::Yes)
+        return;
+    totalIncome = totalExpenses = 0;
+    model->removeRows(0, model->rowCount());
+    updateTable();
 }
-
-void MainWindow::addIncome(double income, int numberOfPeople)
-{
-    totalIncome += income; // Add the income to the total
-    model->appendRow(new QStandardItem("Income")); // Add a new row for the income
-    model->setItem(model->rowCount() - 1, 1, new QStandardItem(QString::number(income))); // Set the income value
-    model->setItem(model->rowCount() - 1, 2, new QStandardItem(QString::number(numberOfPeople))); // Set number of people
-
-    updateTable(); // Update the display of the total
-}
-
-void MainWindow::addExpense(double expense, int numberOfPeople)
-{
-    totalExpenses += expense; // Add the expense to the total
-    model->appendRow(new QStandardItem("Expense")); // Add a new row for the expense
-    model->setItem(model->rowCount() - 1, 1, new QStandardItem(QString::number(expense))); // Set the expense value
-    model->setItem(model->rowCount() - 1, 2, new QStandardItem(QString::number(numberOfPeople))); // Set number of people
-
-    updateTable(); // Update the display of the total
-}
-
 void MainWindow::on_pushDel_clicked()
 {
-    Delegate *delegate = new Delegate(nullptr); // Создайте экземпляр Delegate без родителя
-    delegate->setWindowFlags(Qt::Window); // Установите флаги окна
-    delegate->move(this->pos() + QPoint(20, 20)); // Переместите форму Delegate относительно MainWindow
-
-    // Соберите данные для таблицы
-    QMap<int, double> data;
-    for (int row = 0; row < model->rowCount(); ++row) {
-        int numberOfPeople = model->item(row, 2)->text().toInt();
-        double amount = model->item(row, 1)->text().toDouble();
-        QString type = model->item(row, 0)->text();
-
-        if (type == "Expense") {
-            amount = -amount; // Вычитаем расходы
-        }
-
-        if (data.contains(numberOfPeople)) {
-            data[numberOfPeople] += amount;
-        } else {
-            data[numberOfPeople] = amount;
-        }
+    QMap<int, Money::Amount> data;
+    for (int i = 0; i < 4; ++i)
+        data[i] = 0;
+    for (int row = 0; row < model->rowCount(); ++row)
+    {
+        const auto amount = model->item(row, 1)->data(Qt::UserRole).toLongLong();
+        data[model->item(row, 2)->text().toInt()] +=
+            model->item(row, 0)->data(Qt::UserRole).toBool() ? amount : -amount;
     }
-
-    // Добавьте нулевого человека с начальным балансом
-    double initialCash = ui->beforeIn->toPlainText().toDouble();
-    data[0] += initialCash;
-
-    // Обновите таблицу в форме Delegate
-    delegate->updateTableView(data);
-
-    delegate->show(); // Покажите форму Delegate как немодальный диалог
-    delegate->raise(); // Переместите форму на передний план
+    Money::Amount initial;
+    if (!Money::parse(ui->beforeIn->text(), initial, true))
+        return;
+    data[0] += initial;
+    auto *dialog = new Delegate(this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->updateTableView(data);
+    dialog->show();
 }

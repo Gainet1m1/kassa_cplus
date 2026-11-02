@@ -1,225 +1,56 @@
 #include "delegate.h"
 #include "ui_delegate.h"
-
-// Глобальный массив dagestan
-double dagestan[4] = {0.0, 0.0, 0.0, 0.0};
-
+#include <QHeaderView>
 Delegate::Delegate(QWidget *parent)
-    : QDialog(parent)
-    , ui(new Ui::Delegate)
-    , model(new QStandardItemModel(this)) // Инициализируйте модель
+    : QDialog(parent), ui(new Ui::Delegate), model(new QStandardItemModel(this))
 {
     ui->setupUi(this);
-    ui->tableView->setModel(model); // Свяжите модель с QTableView
+    resize(680, 580);
+    ui->tableView->setModel(model);
+    ui->tableView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    ui->tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    ui->delegate->setMaximumHeight(60);
 }
-
-Delegate::~Delegate()
+Delegate::~Delegate() { delete ui; }
+void Delegate::updateTableView(const QMap<int, Money::Amount> &data)
 {
-    delete ui;
-}
-
-void Delegate::updateTableView(const QMap<int, double>& data)
-{
-    // Очистите модель перед обновлением
+    balances.fill(0);
     model->clear();
-
-    // Установите заголовки столбцов
-    model->setHorizontalHeaderLabels(QStringList() << "Number of People" << "Amount");
-
-    // Заполните модель данными
-    int row = 0;
-    for (auto it = data.constBegin(); it != data.constEnd(); ++it) {
-        QStandardItem *itemPeople = new QStandardItem(QString::number(it.key()));
-        QStandardItem *itemAmount = new QStandardItem(QString::number(it.value()));
-
-        model->setItem(row, 0, itemPeople);
-        model->setItem(row, 1, itemAmount);
-        if (row < 4) {
-            dagestan[it.key()] = it.value();
-        }
-
-        ++row;
+    model->setHorizontalHeaderLabels({tr("Участник"), tr("Чистые поступления")});
+    for (int i = 0; i < 4; ++i)
+    {
+        balances[i] = data.value(i);
+        model->appendRow({new QStandardItem(i ? tr("Участник %1").arg(i) : tr("Общая касса (0)")),
+                          new QStandardItem(Money::format(balances[i]))});
     }
-
-    // Отладочный вывод для проверки значений dagestan
-    qDebug() << "dagestan values:";
-    for (int i = 0; i < 4; ++i) {
-        qDebug() << "dagestan[" << i << "] = " << dagestan[i];
-    }
+    ui->delegate->setPlainText("0.00");
+    ui->label1->setText(tr("Введите сумму и нажмите «Рассчитать переводы». Остаток учитывается "
+                           "через общую кассу (0)."));
 }
-
 void Delegate::on_pushButton_clicked()
 {
-    // Получите данные из QTextEdit
-    QString text = ui->delegate->toPlainText();
-    QStringList lines = text.split("\n");
-
-    // Calculate debts
-    double valueFromDelegate = ui->delegate->toPlainText().toDouble(); // total amount from QTextEdit
-    double perPerson = valueFromDelegate / 3; // Assuming this is the correct logic for splitting
-
-    // Calculate debts for each person
-    double debts[3] = {dagestan[1] - perPerson, dagestan[2] - perPerson, dagestan[3] - perPerson};
-
-    // Флаги, указывающие, участвует ли каждый человек в расчетах
-
-    // Find the maximum and minimum debts
-    // Find the maximum and minimum debts
-    int maxIndex = 0, minIndex = 0, betwIndex = 0;
-    for (int i = 1; i < 3; ++i) {
-        if (debts[i] > debts[maxIndex]) {
-            maxIndex = i;
-        }
-        if (debts[i] < debts[minIndex]) {
-            minIndex = i;
-        }
+    Money::Amount total;
+    if (!Money::parse(ui->delegate->toPlainText(), total))
+    {
+        ui->label1->setText(
+            tr("Введите неотрицательную сумму с точностью до копейки (до 999999999,99)."));
+        return;
     }
-
-    // Ensure maxIndex and minIndex are not the same
-    if (maxIndex == minIndex) {
-        // Если maxIndex и minIndex совпадают, это может привести к некорректному определению betwIndex
-        // Вы можете добавить дополнительную логику для обработки этого случая, если это возможно
-        // Например, выбрать любой другой индекс
-        for (int i = 0; i < 3; ++i) {
-            if (i != maxIndex) {
-                betwIndex = i;
-                break;
-            }
-        }
-    } else {
-        // Если maxIndex и minIndex не совпадают, найдите betwIndex
-        for (int i = 0; i < 3; ++i) {
-            if (i != maxIndex && i != minIndex) {
-                betwIndex = i;
-                break;
-            }
-        }
+    const auto target = Money::shares(total);
+    auto balance = balances;
+    QLabel *labels[] = {ui->label0, ui->label2, ui->label3};
+    for (int i = 1; i <= 3; ++i)
+    {
+        balance[i] -= target[i - 1];
+        labels[i - 1]->setText(tr("Участник %1: %2 (плюс — передать, минус — получить)")
+                                   .arg(i)
+                                   .arg(Money::format(balance[i])));
     }
-
-
-    double maxDebt = debts[maxIndex];
-    double minDebt = debts[minIndex];
-    double betwDebt = debts[betwIndex];
-
-    // Update QLabel
-    ui->label0->setText(QString::number(debts[0])); // Total for 1 person
-
-    // Logic to update labels based on the described logic
-    QString result;
-    if (maxIndex != -1 && minIndex != -1) {
-        if (maxDebt > 0) {
-            if (minDebt < 0) {
-                double delta = minDebt + maxDebt;
-                if (delta == 0) {
-                    if (betwDebt>0) {                    result = QString("V1-1 %1 give %4 to %2; %3 give %5 to 0").arg(maxIndex + 1).arg(minIndex + 1).arg(betwIndex + 1).arg(maxDebt).arg(betwDebt);
-} else {                    result = QString("V1-2 %1 give %4 to %2; %3 get %5 from 0").arg(maxIndex + 1).arg(minIndex + 1).arg(betwIndex + 1).arg(maxDebt).arg(betwDebt);
+    QStringList lines;
+    for (const auto &transfer : Money::settle(balance))
+        lines << tr("%1 → %2: %3")
+                     .arg(transfer.from)
+                     .arg(transfer.to)
+                     .arg(Money::format(transfer.amount));
+    ui->label1->setText(lines.isEmpty() ? tr("Переводы не требуются.") : lines.join('\n'));
 }
-                } else {
-                    if (delta > 0) {
-                        if (betwDebt < 0) {
-                            if (delta + betwDebt == 0) {
-                                result = QString("v2 %1 give %2 to %3; %1 give %4 to %5").arg(maxIndex + 1).arg(-minDebt).arg(minIndex + 1).arg(-betwDebt).arg(betwIndex + 1);
-                            } else {
-                                if (delta + betwDebt  > 0) {
-                                    result = QString("3v %1 give %2 to %3; %1 give %4 to %5; %1 give %6+%4 to 0").arg(maxIndex + 1).arg(-minDebt).arg(minIndex + 1).arg(betwDebt).arg(betwIndex + 1).arg(delta);
-                                } else {
-                                    result = QString("4v %1 give %2 to %3; %1 give %4 to %5; %5 get %6+%4 from 0").arg(maxIndex + 1).arg(-minDebt).arg(minIndex + 1).arg(delta).arg(betwIndex + 1).arg(betwDebt);
-                                }
-                            }
-                        } else {
-                            if (betwDebt == 0) {
-                                result = QString("V5 %1 give %2 to %3; %1 give %4 to 0").arg(maxIndex + 1).arg(-minDebt).arg(minIndex + 1).arg(delta);
-                            } else {
-                                result = QString("V6 %1 give %2 to %3; %1 give %4 to 0; %3; %5 give %6 to 0").arg(maxIndex + 1).arg(-minDebt).arg(minIndex + 1).arg(delta).arg(betwIndex + 1).arg(betwDebt);
-                            }
-                        }
-                    } else {
-                        if (betwDebt > 0) {
-                            if (delta + betwDebt == 0) {
-                                result = QString("V7 %1 give %2 to %3; %4 give %5 to %3").arg(maxIndex + 1).arg(maxDebt).arg(minIndex + 1).arg(betwIndex + 1).arg(betwDebt);
-                            } else {
-                                if ((delta + betwDebt) < 0) {
-                                    result = QString("V8 %1 give %2 to %3; %4 give %6 to %3; %4 get %6+%5 from 0").arg(maxIndex + 1).arg(maxDebt).arg(minIndex + 1).arg(betwIndex + 1).arg(betwDebt).arg(delta);
-                                } else {
-                                    result = QString("V9 %1 give %2 to %3; %4 give %6 to %3; %4 give %6+%5 to 0").arg(maxIndex + 1).arg(maxDebt).arg(minIndex + 1).arg(betwIndex + 1).arg(betwDebt).arg(delta);
-                                }
-                            }
-                        } else {
-                            result = QString("V10 %1 give %2 to %3; %3 get %6+%5 from 0; %4 get %7 from 0").arg(maxIndex + 1).arg(-maxDebt).arg(minIndex + 1).arg(betwIndex + 1).arg(maxDebt).arg(minDebt).arg(betwDebt);
-                        }
-                    }
-                }
-            } else {
-                result = QString("V11 %1 give %2 to 0; %3 give %4 to 0; %5 give %6 to 0").arg(maxIndex + 1).arg(maxDebt).arg(minIndex + 1).arg(minDebt).arg(betwIndex + 1).arg(betwDebt);
-            }
-        } else {
-            result = QString("V12 %1 get %2 from 0; %3 get %4 from 0; %5 get %6 from 0").arg(maxIndex + 1).arg(maxDebt).arg(minIndex + 1).arg(minDebt).arg(betwIndex + 1).arg(betwDebt);
-        }
-    } else {
-        result = "from 0.";
-    }
-
-    ui->label1->setText(result);
-    ui->label2->setText(QString::number(debts[1])); // Debt for 2 persons
-    ui->label3->setText(QString::number(debts[2])); // Debt for 3 persons
-}
-
-// if debt[maxindex]<=0 {
-
-//         settext %maxindex get %debts[maxindex] from 0,%minindex get %debts[minindex] from 0, %betwIndex get %debts[btwindex] from 0;}
-//         else {
-//         if debts[minindex]<0 {
-//                 if delta=debt[min]+debt[max]==0 {
-//                         if debts[btw]>0 {
-//                                 settext %maxindex give %debts[maxindex] to %minindex , %betwIndex get %debts[btwindex] to 0;
-//                             } else {
-//                                 settext %maxindex give %debts[maxindex] to %minindex , %betwIndex get %debts[btwindex] from 0;
-//                             }
-//                     } else {
-//                     if delta>0 {
-//                             if debts[btw]<0 {
-//                                     if debts[btw]+delta==0 {
-//                                             settext %maxindex give %debts[minindex] to %minindex , %maxIndex give %debts[btwindex] to  %btwindex;
-//                                         }
-//                                     else{
-//                                         if did[btw]+delta>0 {
-//                                                 settext %maxindex give %debts[minindex] to %minindex , %maxIndex give %debts[btwindex] to  %btwindex,%maxindex give %delta+debt[btw] to 0;
-
-//                                             }
-//                                         else {
-//                                             settext %maxindex give %debts[minindex] to %minindex , %maxIndex give %delta to  %btwindex,%btwindex get %delta+debt[btw] from 0;
-
-//                                         }
-
-//                                     }
-//                                 }else {
-//                                     settext %maxindex give %debts[minindex] to %minindex , %maxIndex give %delta to  0,%btwindex give %debt[btw] to 0;
-
-//                                 }
-//                         } else{
-//                         if debt[btw]>0 {
-//                                 if delta+debt[btw]=0 {
-//                                         settext %maxindex give %debts[minindex] to %minindex ,%btwindex give %debt[btw] to %minindex;
-
-//                                     } else {
-//                                     if delta+debt[btw]>0 {
-//                                             settext %maxindex give %debts[minindex] to %minindex ,%btwindex give %delta to %minindex,%btwindex give %delta+debt[btw] to 0 ;
-
-//                                         }else {
-//                                         settext %maxindex give %debts[minindex] to %minindex ,%btwindex give %delta to %minindex,%btwindex give %delta+debt[btw] from 0 ;
-
-//                                     }
-//                                 }
-//                             } else {
-//                                 settext %maxindex give %debts[minindex] to %minindex ,%btwindex get %debt[btw] from 0, %minindex get %delta from 0 ;
-
-//                             }
-//                     }
-//                 }
-//             } else {
-//                 settext %maxindex give %debts[maxindex] to 0 ,%btwindex give %debt[btw] to 0, %minindex give %debt[minindex] to 0 ;
-
-//             }
-//         }
-
-

@@ -1,68 +1,72 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <ui version="4.0">
- <class>Form</class>
- <widget class="QWidget" name="Form">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>799</width>
-    <height>532</height>
-   </rect>
-  </property>
+ <class>InputDialog</class>
+ <widget class="QDialog" name="InputDialog">
   <property name="windowTitle">
-   <string>Form</string>
+   <string>Kassa</string>
   </property>
-  <widget class="QLineEdit" name="inputAmount">
-   <property name="geometry">
-    <rect>
-     <x>100</x>
-     <y>80</y>
-     <width>113</width>
-     <height>21</height>
-    </rect>
-   </property>
-  </widget>
-  <widget class="QCheckBox" name="checkBox1">
-   <property name="geometry">
-    <rect>
-     <x>290</x>
-     <y>80</y>
-     <width>85</width>
-     <height>20</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>CheckBox</string>
-   </property>
-  </widget>
-  <widget class="QCheckBox" name="checkBox2">
-   <property name="geometry">
-    <rect>
-     <x>290</x>
-     <y>140</y>
-     <width>85</width>
-     <height>20</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>CheckBox</string>
-   </property>
-  </widget>
-  <widget class="QCheckBox" name="checkBox3">
-   <property name="geometry">
-    <rect>
-     <x>290</x>
-     <y>210</y>
-     <width>85</width>
-     <height>20</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>CheckBox</string>
-   </property>
-  </widget>
+  <layout class="QVBoxLayout" name="inputLayout">
+   <item>
+    <widget class="QLabel" name="amountLabel">
+     <property name="text">
+      <string>Сумма (до двух знаков после запятой)</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLineEdit" name="inputAmount" />
+   </item>
+   <item>
+    <widget class="QLabel" name="peopleLabel">
+     <property name="text">
+      <string>Участник (без выбора — общая касса)</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="peopleLayout">
+     <item>
+      <widget class="QCheckBox" name="checkBox1">
+       <property name="text">
+        <string>Участник 1</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QCheckBox" name="checkBox2">
+       <property name="text">
+        <string>Участник 2</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QCheckBox" name="checkBox3">
+       <property name="text">
+        <string>Участник 3</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QLabel" name="errorLabel" />
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="entryHint">
+     <property name="text">
+      <string>Enter — добавить и продолжить; OK — добавить и закрыть.</string>
+     </property>
+    </widget>
+   </item>
+  </layout>
  </widget>
- <resources/>
- <connections/>
+ <resources />
+ <connections />
 </ui>

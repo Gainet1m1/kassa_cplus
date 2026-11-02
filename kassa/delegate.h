@@ -1,30 +1,24 @@
-#ifndef DELEGATE_H
-#define DELEGATE_H
-
+#pragma once
+#include "money.h"
 #include <QDialog>
+#include <QMap>
 #include <QStandardItemModel>
-#include "ui_delegate.h"
-
-namespace Ui {
+namespace Ui
+{
 class Delegate;
 }
-
 class Delegate : public QDialog
 {
     Q_OBJECT
-
-public:
+  public:
     explicit Delegate(QWidget *parent = nullptr);
     ~Delegate();
+    void updateTableView(const QMap<int, Money::Amount> &data);
+  private slots:
+    void on_pushButton_clicked();
 
-    void updateTableView(const QMap<int, double>& data); // Измените сигнатуру метода
-
-private slots:
-    void on_pushButton_clicked(); // Добавьте этот слот
-
-private:
+  private:
     Ui::Delegate *ui;
-    QStandardItemModel *model; // Добавьте этот член
+    QStandardItemModel *model;
+    std::array<Money::Amount, 4> balances{};
 };
-
-#endif // DELEGATE_H

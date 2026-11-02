@@ -1,0 +1,48 @@
+name: Windows portable build
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          arch: win64_msvc2022_64
+          cache: true
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+      - name: Build application and tests
+        run: cmake --build build --parallel 2
+      - name: Test widgets, accounting and application startup
+        run: ctest --test-dir build --output-on-failure
+      - name: Deploy Qt and MSVC runtime
+        shell: pwsh
+        run: ./scripts/package-windows.ps1 -BuildDir build -OutputDir dist
+      - name: Test extracted portable ZIP without Qt on PATH
+        shell: pwsh
+        run: |
+          Expand-Archive dist/Kassa-windows-x64.zip portable
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+          Remove-Item Env:QT_PLUGIN_PATH -ErrorAction SilentlyContinue
+          Remove-Item Env:QT_QPA_PLATFORM_PLUGIN_PATH -ErrorAction SilentlyContinue
+          Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
+          $app = Start-Process -FilePath "$PWD/portable/Kassa/Kassa.exe" -WorkingDirectory "$PWD/portable/Kassa" -ArgumentList '--smoke-test' -PassThru
+          if (-not $app.WaitForExit(15000)) { $app.Kill(); throw 'Portable application startup timed out' }
+          if ($app.ExitCode -ne 0) { throw "Portable application failed: $($app.ExitCode)" }
+      - name: Upload portable application
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kassa-windows-x64
+          path: dist/Kassa-windows-x64.zip
+          if-no-files-found: error
+          retention-days: 30
